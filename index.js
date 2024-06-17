@@ -14,7 +14,11 @@ const handleConnect = ({ uid, ws, name, connect }) => {
   };
   ws.send(JSON.stringify(data));
   if (connect) {
-    const otherWs = users.get(connect).ws;
+    const otherWs = users.get(connect)?.ws;
+    if (!otherWs) {
+      ws.send(JSON.stringify({ type: "error", message: "User not found" }));
+      return;
+    }
     ws.send(JSON.stringify({ type: "joined", connect }));
     otherWs.send(JSON.stringify({ type: "joined", connect: uid }));
   }
@@ -24,12 +28,14 @@ const handleMessage = ({ message, receiver, ws }) => {
   const data = {
     type: "message",
     message: message,
-    sender: wss.get(ws).name,
+    sender: wss.get(ws)?.name,
   };
   const otherWs = users.get(receiver)?.ws;
-  if (otherWs) {
-    otherWs.send(JSON.stringify(data));
+  if (!otherWs) {
+    ws.send(JSON.stringify({ type: "error", message: "User not found" }));
+    return;
   }
+  otherWs.send(JSON.stringify(data));
 };
 
 const handleExit = ({ receiver, ws }) => {
@@ -37,9 +43,11 @@ const handleExit = ({ receiver, ws }) => {
     type: "exit",
   };
   const otherWs = users.get(receiver)?.ws;
-  if (otherWs) {
-    otherWs.send(JSON.stringify(data));
+  if (!otherWs) {
+    ws.send(JSON.stringify({ type: "error", message: "User not found" }));
+    return;
   }
+  otherWs.send(JSON.stringify(data));
 };
 
 uws
@@ -61,10 +69,13 @@ uws
       }
     },
     close: (ws, code, message) => {
-      const uid = wss.get(ws).uid;
+      const uid = wss.get(ws)?.uid;
       wss.delete(ws);
       users.delete(uid);
     },
+  })
+  .any("/*", (res, req) => {
+    res.end("Nothing to see here!");
   })
   .listen(3000, (listenSocket) => {
     console.log("Listening to port 3000");
